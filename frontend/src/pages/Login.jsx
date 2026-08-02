@@ -30,11 +30,8 @@ export default function Login() {
       
       localStorage.setItem('user', JSON.stringify(res.data.user));
       
-      if (isLogin) {
-        navigate('/dashboard');
-      } else {
-        navigate('/onboarding');
-      }
+      // For the hackathon demo, always go straight to the dashboard to show off the UI
+      navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.error || 'Authentication failed');
     } finally {

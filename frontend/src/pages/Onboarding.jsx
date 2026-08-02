@@ -61,18 +61,14 @@ export default function Onboarding() {
     industry: 'Technology & Software (SaaS)',
     mission: '',
     vision: '',
+    target_audience: '',
     logo_filename: '',
-    colors: {
-      primary: '#4f46e5',
-      secondary: '#8b5cf6',
-      accent: '#10b981',
-      neutral: '#9ca3af'
-    },
+    colors: { primary: '#F97316', secondary: '#431407', accent: '#fbbf24', neutral: '#1c1917' },
     typography: 'Inter — Primary',
-    selected_voices: ['Professional'],
-    brand_usp: '',
+    selected_voices: [],
     words_to_use: '',
     words_to_avoid: '',
+    brand_usp: '',
     primary_audience: '',
     age_range: '',
     location: '',
@@ -108,7 +104,7 @@ export default function Onboarding() {
         }));
       }
     }).catch(() => {});
-  }, [user, navigate]);
+  }, [user?.id, navigate]);
 
   // Handle Analysis progress timer
   useEffect(() => {
@@ -139,9 +135,9 @@ export default function Onboarding() {
       // Save data and start Digital Twin Analysis Screen
       setLoading(true);
       try {
-        await axios.post(`${API_URL}/onboarding/${user.id}/step`, { step: 6, data: formData });
+        await axios.post(`${API_URL}/onboarding/${user?.id || 'demo-user'}/step`, { step: 6, data: formData });
       } catch (err) {
-        console.error(err);
+        console.error("Failed to save step 6:", err);
       } finally {
         setLoading(false);
         setIsAnalyzingTwin(true);
@@ -151,11 +147,12 @@ export default function Onboarding() {
     
     setLoading(true);
     try {
-      await axios.post(`${API_URL}/onboarding/${user.id}/step`, { step: currentStep + 1, data: formData });
-      setCurrentStep(prev => prev + 1);
+      await axios.post(`${API_URL}/onboarding/${user?.id || 'demo-user'}/step`, { step: currentStep + 1, data: formData });
     } catch (err) {
-      console.error(err);
+      console.error("Failed to save step:", err);
     } finally {
+      // For hackathon: ALWAYS proceed to next step even if backend fails
+      setCurrentStep(prev => prev + 1);
       setLoading(false);
     }
   };

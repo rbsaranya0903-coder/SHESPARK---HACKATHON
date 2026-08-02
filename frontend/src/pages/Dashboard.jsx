@@ -151,7 +151,7 @@ export default function Dashboard() {
         setUserCompanies(prev => Array.from(new Set([savedName, ...prev])));
       }
     }).catch(() => {});
-  }, [user, navigate]);
+  }, [user?.id, navigate]);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
