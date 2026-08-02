@@ -314,10 +314,8 @@ export default function Dashboard() {
             <SidebarItem icon={<Shield size={16} />} label="Brand Memory" active={activeTab === 'brand-memory'} onClick={() => setActiveTab('brand-memory')} />
             <SidebarItem icon={<Sparkles size={16} />} label="Evaluate Content" active={activeTab === 'evaluate'} onClick={() => setActiveTab('evaluate')} />
 
-            <SidebarItem icon={<Layers size={16} />} label="Campaign Studio" active={activeTab === 'campaigns'} onClick={() => setActiveTab('campaigns')} />
             <SidebarItem icon={<PieChart size={16} />} label="Competitor Intel" active={activeTab === 'competitors'} onClick={() => setActiveTab('competitors')} />
             <SidebarItem icon={<Compass size={16} />} label="Opportunity Radar" active={activeTab === 'radar'} onClick={() => setActiveTab('radar')} />
-            <SidebarItem icon={<TrendingUp size={16} />} label="Analytics" active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} />
             <SidebarItem icon={<History size={16} />} label="History" active={activeTab === 'history'} onClick={() => setActiveTab('history')} />
             <SidebarItem icon={<FileText size={16} />} label="Reports" active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
           </nav>

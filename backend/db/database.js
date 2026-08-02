@@ -65,10 +65,16 @@ function initDb() {
             target_audience TEXT,
             social_links TEXT,
             competitors TEXT,
+            brand_details TEXT,
             onboarding_step INTEGER DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id)
         )`);
+
+        // Add brand_details column if it doesn't exist (for existing databases)
+        db.run(`ALTER TABLE organization_profile ADD COLUMN brand_details TEXT`, (err) => {
+            // Ignore errors if column already exists
+        });
     });
 }
 

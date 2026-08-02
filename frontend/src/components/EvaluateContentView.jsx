@@ -48,13 +48,14 @@ export default function EvaluateContentView({ selectedCompany }) {
   };
 
   const [uploadedFileData, setUploadedFileData] = useState(null);
+  const [evaluationData, setEvaluationData] = useState(null);
 
   const startEvaluation = async (fileData) => {
     setUploadState('uploaded');
     setUploadedFileData(fileData);
     setIsFixed(false);
+    setEvaluationData(null);
     
-    // Initial UI state
     setChatMessages([
       { sender: 'user', type: 'upload', content: fileData.name },
       { sender: 'ai', type: 'typing' }
@@ -78,20 +79,40 @@ export default function EvaluateContentView({ selectedCompany }) {
         throw new Error(data.error || 'Failed to analyze asset');
       }
 
-      setChatMessages([
+      const evalJson = data.reply;
+      setEvaluationData(evalJson);
+
+      let contentHtml = `
+        <div class="space-y-2">
+          <div class="font-bold text-sm">${evalJson.score}</div>
+          ${evalJson.competitorWarning ? `<div class="p-2 bg-rose-500/10 border border-rose-500/20 text-rose-600 rounded mt-2 text-xs font-bold">⚠️ ${evalJson.competitorWarning}</div>` : ''}
+          <div class="mt-2 text-xs"><strong>✅ Right:</strong> ${evalJson.right}</div>
+          <div class="mt-1 text-xs"><strong>❌ Wrong:</strong> ${evalJson.wrong}</div>
+          <div class="mt-1 text-xs italic opacity-80">Uniqueness: ${evalJson.uniqueness}</div>
+        </div>
+      `;
+
+      let newMessages = [
         { sender: 'user', type: 'upload', content: fileData.name },
-        { sender: 'ai', type: 'evaluation', content: data.reply || "Evaluation completed." },
-        { sender: 'ai', type: 'suggestion', content: `Here is a suggested updated version that perfectly matches the ${selectedCompany} identity:` }
-      ]);
+        { sender: 'ai', type: 'evaluation', content: contentHtml }
+      ];
+
+      if (evalJson.status === 'Apt') {
+        newMessages.push({ sender: 'ai', type: 'success', content: 'This asset is perfectly aligned with your brand guidelines and stands out from competitors! No fixes needed.' });
+        setIsFixed(true); // Auto-approve
+      } else {
+        newMessages.push({ sender: 'ai', type: 'suggestion', content: `Here is a suggested replacement that is apt for your organization:` });
+      }
+
+      setChatMessages(newMessages);
       
-      // Save to History
       saveHistoryEvent({
         title: `Asset Evaluation: ${fileData.name}`,
         type: 'Evaluation',
-        score: Math.floor(Math.random() * (99 - 75 + 1) + 75), // Random score between 75 and 99
-        status: 'Safe to Publish',
+        score: parseInt(evalJson.score.match(/\d+/)?.[0] || '75', 10),
+        status: evalJson.status === 'Apt' ? 'Safe to Publish' : 'Needs Review',
         editor: 'AI Auto',
-        isAiFixed: true,
+        isAiFixed: evalJson.status === 'Apt',
         company: selectedCompany
       });
       
@@ -109,7 +130,7 @@ export default function EvaluateContentView({ selectedCompany }) {
     setChatMessages(prev => [
       ...prev,
       { sender: 'user', type: 'text', content: 'Fix Everything' },
-      { sender: 'ai', type: 'success', content: 'All brand violations have been automatically fixed! The main preview now shows your updated content.' }
+      { sender: 'ai', type: 'success', content: 'All brand violations have been automatically fixed! The main preview now shows the generated apt poster.' }
     ]);
   };
 
@@ -117,7 +138,7 @@ export default function EvaluateContentView({ selectedCompany }) {
     setChatMessages(prev => [
       ...prev,
       { sender: 'user', type: 'text', content: 'Edit Further' },
-      { sender: 'ai', type: 'text', content: 'What specific adjustments would you like to make?' }
+      { sender: 'ai', type: 'text', content: 'What specific adjustments would you like to make to the generated design?' }
     ]);
   };
 
@@ -169,12 +190,21 @@ export default function EvaluateContentView({ selectedCompany }) {
               <div className="w-full h-full flex flex-col items-center justify-center animate-in fade-in duration-500">
                 <div className="relative w-full max-w-sm rounded-xl overflow-hidden shadow-lg border border-theme-border flex justify-center items-center bg-black/5">
                   {uploadedFileData?.type?.startsWith('image/') ? (
-                    <img 
-                      src={uploadedFileData?.base64 || "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=600&auto=format&fit=crop"} 
-                      alt="Uploaded Content" 
-                      className="w-full h-auto object-cover transition-all duration-700" 
-                      style={isFixed ? { filter: 'brightness(1.1) contrast(1.15) saturate(1.2)' } : {}}
-                    />
+                    <div className="relative w-full h-full">
+                      <img 
+                        src={isFixed && evaluationData?.status !== 'Apt' ? `https://source.unsplash.com/600x600/?${encodeURIComponent(evaluationData?.suggestedReplacementImageKeywords || selectedCompany)}` : (uploadedFileData?.base64 || "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=600&auto=format&fit=crop")} 
+                        alt="Uploaded Content" 
+                        className="w-full h-auto object-cover transition-all duration-700" 
+                      />
+                      {isFixed && evaluationData?.status !== 'Apt' && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-4">
+                          <div className="bg-black/40 backdrop-blur-md p-4 rounded-xl border border-white/20 text-center shadow-2xl transform hover:scale-105 transition-transform">
+                            <h3 className="text-white font-extrabold text-2xl tracking-widest uppercase drop-shadow-md mb-1">{selectedCompany}</h3>
+                            <p className="text-stone-200 text-[10px] font-medium tracking-widest uppercase opacity-90">NATURALLY YOU.</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className={`py-24 flex flex-col items-center justify-center transition-all duration-500 ${isFixed ? 'text-emerald-500' : 'text-theme-text-secondary'}`}>
                       {isFixed ? (
@@ -193,12 +223,12 @@ export default function EvaluateContentView({ selectedCompany }) {
                   {isFixed && (
                     <div className="absolute top-0 inset-x-0 h-full w-full pointer-events-none border-4 border-emerald-500/50 rounded-xl animate-pulse" />
                   )}
-                  <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-md">
+                  <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-md z-10">
                     {isFixed ? <Sparkles size={12} className="text-emerald-400" /> : <FileText size={12} />}
-                    {isFixed ? 'Fixed Version' : (uploadedFileData?.name || 'File')}
+                    {isFixed && evaluationData?.status !== 'Apt' ? 'AI Generated Replacement' : (uploadedFileData?.name || 'File')}
                   </div>
                 </div>
-                <button onClick={() => { setUploadState('idle'); setUploadedFileData(null); setChatMessages([]); setIsFixed(false); }} className="mt-6 px-4 py-2 rounded-lg bg-theme-input text-theme-text-secondary text-xs font-semibold hover:bg-theme-border transition-colors">
+                <button onClick={() => { setUploadState('idle'); setUploadedFileData(null); setChatMessages([]); setIsFixed(false); setEvaluationData(null); }} className="mt-6 px-4 py-2 rounded-lg bg-theme-input text-theme-text-secondary text-xs font-semibold hover:bg-theme-border transition-colors">
                   Upload Different File
                 </button>
               </div>
@@ -237,7 +267,7 @@ export default function EvaluateContentView({ selectedCompany }) {
             ) : (
               <div className="space-y-6">
                 {chatMessages.map((msg, idx) => (
-                  <ChatMessage key={idx} msg={msg} company={selectedCompany} onAccept={handleAccept} onReject={handleReject} isLast={idx === chatMessages.length - 1} uploadedFile={uploadedFileData} />
+                  <ChatMessage key={idx} msg={msg} company={selectedCompany} onAccept={handleAccept} onReject={handleReject} isLast={idx === chatMessages.length - 1} uploadedFile={uploadedFileData} evaluationData={evaluationData} />
                 ))}
                 <div ref={chatBottomRef} />
               </div>
@@ -259,7 +289,7 @@ function Badge({ icon: Icon, text, color = "text-theme-text-secondary" }) {
   );
 }
 
-function ChatMessage({ msg, company, onAccept, onReject, isLast, uploadedFile }) {
+function ChatMessage({ msg, company, onAccept, onReject, isLast, uploadedFile, evaluationData }) {
   if (msg.type === 'typing') {
     return (
       <div className="flex gap-3">
@@ -290,6 +320,9 @@ function ChatMessage({ msg, company, onAccept, onReject, isLast, uploadedFile })
       </div>
     );
   }
+
+  const suggestionKeywords = evaluationData?.suggestedReplacementImageKeywords || company;
+  const unsplashUrl = `https://source.unsplash.com/600x600/?${encodeURIComponent(suggestionKeywords)}`;
 
   return (
     <div className="flex gap-3">
@@ -325,6 +358,25 @@ function ChatMessage({ msg, company, onAccept, onReject, isLast, uploadedFile })
                   if (!uploadedFile?.base64) return;
                   
                   let downloadDataUri = uploadedFile.base64;
+                  
+                  if (evaluationData?.status !== 'Apt' && uploadedFile?.type?.startsWith('image/')) {
+                    // Fetch the unsplash image blob and download it
+                    try {
+                        const response = await fetch(unsplashUrl);
+                        const blob = await response.blob();
+                        const objectUrl = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = objectUrl;
+                        link.download = `Generated_${uploadedFile.name || 'Brand_Asset.jpg'}`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(objectUrl);
+                        return;
+                    } catch (e) {
+                        console.error("Failed to download generated image", e);
+                    }
+                  }
                   
                   // If it's a PDF, we dynamically modify it to stamp "BRAND APPROVED"
                   if (uploadedFile.type === 'application/pdf' || uploadedFile.name?.toLowerCase().endsWith('.pdf')) {
@@ -379,24 +431,31 @@ function ChatMessage({ msg, company, onAccept, onReject, isLast, uploadedFile })
         {msg.type === 'suggestion' && (
           <div className="mt-3 bg-theme-bg border border-theme-border rounded-xl p-3 shadow-md animate-in slide-in-from-bottom-2">
             <p className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider mb-2 flex items-center gap-1">
-              <Sparkles size={12} className="text-orange-500" /> Suggested Alteration
+              <Sparkles size={12} className="text-orange-500" /> Generated Alteration
             </p>
             <div className="relative rounded-lg overflow-hidden border border-theme-border flex justify-center items-center bg-black/5">
-              {/* If it's an image, apply CSS filters to simulate AI fix */}
+              {/* If it's an image, apply generated unsplash image instead of filter */}
               {uploadedFile?.type?.startsWith('image/') ? (
-                <img 
-                  src={uploadedFile?.base64 || "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?q=80&w=600&auto=format&fit=crop"} 
-                  alt="Suggested Alteration" 
-                  className="w-full h-auto transition-all" 
-                  style={{ filter: 'brightness(1.1) contrast(1.15) saturate(1.2)' }} 
-                />
+                <div className="relative w-full h-full">
+                  <img 
+                    src={unsplashUrl}
+                    alt="Generated Alteration" 
+                    className="w-full h-auto transition-all" 
+                  />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-2">
+                    <div className="bg-black/40 backdrop-blur-md p-3 rounded-lg border border-white/20 text-center shadow-lg">
+                      <h3 className="text-white font-extrabold text-lg tracking-widest uppercase drop-shadow-md mb-0.5">{company}</h3>
+                      <p className="text-stone-200 text-[8px] font-medium tracking-widest uppercase opacity-90">NATURALLY YOU.</p>
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="py-12 flex flex-col items-center justify-center text-theme-text-secondary">
                   <FileCheck size={48} className="text-emerald-500 mb-3" />
                   <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Document enhanced & brand-compliant</span>
                 </div>
               )}
-              <div className="absolute top-2 right-2 bg-orange-500 text-white px-2 py-1 rounded text-[9px] font-bold shadow-lg">
+              <div className="absolute top-2 right-2 bg-orange-500 text-white px-2 py-1 rounded text-[9px] font-bold shadow-lg z-10">
                 ✨ {company} Compliant
               </div>
             </div>
