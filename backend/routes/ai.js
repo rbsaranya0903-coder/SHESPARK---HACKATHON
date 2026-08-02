@@ -3,7 +3,7 @@ const axios = require('axios');
 const router = express.Router();
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 // Helper to call Gemini REST API
 async function callGemini(prompt, base64Image, mimeType) {
@@ -59,13 +59,161 @@ router.post('/evaluate', async (req, res) => {
     const { company, fileName, imageBase64, mimeType } = req.body;
     
     const prompt = `You are BrandSphere AI, evaluating an uploaded asset named "${fileName}" for the brand "${company || 'Acme Corporation'}". 
-    Analyze the provided image in the context of the brand.
-    Point out 1 positive aspect and 1 negative aspect (e.g. typography or color mismatch) that violates the brand guidelines. 
-    Keep it to 2-3 short sentences. Be professional and specific about what you see in the image.`;
+    Analyze the provided content in the context of the brand. If it's a document instead of an image, infer its contents from its filename.
+    You MUST output your evaluation strictly in the following format:
+    
+    **🎯 Brand Alignment Score:**
+    [Give an estimated percentage score of how well this aligns with the brand voice, e.g., "85% - Strong alignment with core values."]
+
+    **✅ What's Right:**
+    [Point out 1-2 positive aspects that align with the brand]
+
+    **❌ What's Wrong:**
+    [Point out 1-2 negative aspects, inconsistencies, or violations of brand guidelines]
+
+    **⚔️ Competitor Uniqueness:**
+    [Briefly compare this to industry competitors, stating how unique this content makes the brand stand out (e.g., "Highly unique compared to competitor X...")]
+    
+    Keep the descriptions very concise and professional.`;
     
     const reply = await callGemini(prompt, imageBase64, mimeType);
     res.json({ reply });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint for Competitor Intel
+router.post('/competitor-intel', async (req, res) => {
+  try {
+    const { company, competitor } = req.body;
+    if (!company || !competitor) {
+      return res.status(400).json({ error: "Both company and competitor are required" });
+    }
+    
+    const prompt = `You are BrandSphere AI, an expert brand strategist. The user's brand is "${company}". The competitor is "${competitor}".
+    Generate a realistic, simulated recent market advancement or product launch by "${competitor}" (something that would happen this week).
+    Then, critically analyze how this specific advancement threatens or impacts the "${company}" brand.
+    
+    You MUST output your response strictly in the following JSON format (do not include markdown codeblocks around the JSON):
+    {
+      "advancementTitle": "Short catchy title of the competitor's move",
+      "advancementDescription": "1-2 sentences describing what the competitor did.",
+      "threatLevel": "High", // Can be "Low", "Medium", "High", or "Critical"
+      "impactAnalysis": "2-3 sentences explaining exactly how this affects our brand and what we should do."
+    }`;
+    
+    const replyText = await callGemini(prompt);
+    
+    // Clean up potential markdown blocks if Gemini includes them
+    let jsonString = replyText.replace(/```json/gi, '').replace(/```/g, '').trim();
+    
+    try {
+      const data = JSON.parse(jsonString);
+      res.json(data);
+    } catch (parseError) {
+      console.error("Failed to parse Gemini response as JSON:", replyText);
+      res.status(500).json({ error: "Failed to parse AI response into JSON format." });
+    }
+    
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint for Opportunity Radar
+router.post('/opportunity-radar', async (req, res) => {
+  try {
+    const { company } = req.body;
+    if (!company) {
+      return res.status(400).json({ error: "Company name is required" });
+    }
+    
+    const prompt = `You are BrandSphere AI, an expert brand strategist. The user's brand is "${company}".
+    Analyze the current media, technology, and cultural landscape to identify massive growth opportunities for this brand.
+    
+    You MUST output your response strictly in the following JSON format (do not include markdown codeblocks around the JSON):
+    {
+      "trends": [
+        { "name": "Name of Trend (e.g., Short-form Edutainment)", "impact": 95 },
+        { "name": "Name of Trend", "impact": 88 },
+        { "name": "Name of Trend", "impact": 72 }
+      ],
+      "now": [
+        { "title": "Immediate Action Title", "description": "1-2 sentences on what to do this month.", "action": "Draft campaign for this" }
+      ],
+      "future": [
+        { "title": "Future Shift Title", "description": "1-2 sentences on what to plan for next year.", "action": "Analyze feasibility" }
+      ]
+    }`;
+    
+    const replyText = await callGemini(prompt);
+    
+    let jsonString = replyText.replace(/```json/gi, '').replace(/```/g, '').trim();
+    
+    try {
+      const data = JSON.parse(jsonString);
+      res.json(data);
+    } catch (parseError) {
+      console.error("Failed to parse Gemini response as JSON:", replyText);
+      res.status(500).json({ error: "Failed to parse AI response into JSON format." });
+    }
+    
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET Executive Summary Report
+router.post('/generate-report', async (req, res) => {
+  const { company, historyLogs } = req.body;
+  
+  if (!company) {
+    return res.status(400).json({ error: 'Company name is required' });
+  }
+
+  try {
+    let context = `Generate a high-level executive summary report for the brand: ${company}.\n`;
+    
+    if (historyLogs && historyLogs.length > 0) {
+      context += `\nHere are some of their recent AI actions and evaluations:\n`;
+      historyLogs.forEach(log => {
+        context += `- ${log.type.toUpperCase()}: ${log.title} (Score: ${log.score}%, Status: ${log.status})\n`;
+      });
+    }
+
+    const prompt = `${context}
+    
+You are a fractional CMO and Brand Strategist AI. Return a JSON object representing the executive report with the following structure exactly:
+\`\`\`json
+{
+  "executiveSummary": "A strong, 2-3 sentence overview of the brand's current positioning.",
+  "brandHealthScore": 85,
+  "topThreats": [
+    {"title": "Threat 1", "description": "Description"},
+    {"title": "Threat 2", "description": "Description"}
+  ],
+  "immediateOpportunities": [
+    {"title": "Opp 1", "description": "Description"},
+    {"title": "Opp 2", "description": "Description"}
+  ],
+  "strategicRecommendation": "A powerful closing paragraph advising on the next 30 days."
+}
+\`\`\`
+Do not include markdown blocks outside the JSON if possible, just return the JSON object directly.`;
+
+    const replyText = await callGemini(prompt);
+    let jsonString = replyText.replace(/```json/gi, '').replace(/```/g, '').trim();
+    
+    try {
+      const data = JSON.parse(jsonString);
+      res.json(data);
+    } catch (parseError) {
+      console.error("Failed to parse report JSON:", replyText);
+      res.status(500).json({ error: "Failed to parse AI response into JSON format." });
+    }
+  } catch (error) {
+    console.error("Generate Report API Error:", error);
     res.status(500).json({ error: error.message });
   }
 });

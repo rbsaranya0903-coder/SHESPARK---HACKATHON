@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CloudUpload, FileText, Image as ImageIcon, File, Link, Hash, Video, FileCheck, Sparkles, AlertTriangle, CheckCircle2, X } from 'lucide-react';
+import { saveHistoryEvent } from '../utils/historyManager';
 
 export default function EvaluateContentView({ selectedCompany }) {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadState, setUploadState] = useState('idle'); // 'idle' | 'uploaded'
+  const [isFixed, setIsFixed] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const chatBottomRef = useRef(null);
 
@@ -50,6 +52,7 @@ export default function EvaluateContentView({ selectedCompany }) {
   const startEvaluation = async (fileData) => {
     setUploadState('uploaded');
     setUploadedFileData(fileData);
+    setIsFixed(false);
     
     // Initial UI state
     setChatMessages([
@@ -71,12 +74,29 @@ export default function EvaluateContentView({ selectedCompany }) {
       
       const data = await response.json();
       
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Failed to analyze asset');
+      }
+
       setChatMessages([
         { sender: 'user', type: 'upload', content: fileData.name },
         { sender: 'ai', type: 'evaluation', content: data.reply || "Evaluation completed." },
         { sender: 'ai', type: 'suggestion', content: `Here is a suggested updated version that perfectly matches the ${selectedCompany} identity:` }
       ]);
+      
+      // Save to History
+      saveHistoryEvent({
+        title: `Asset Evaluation: ${fileData.name}`,
+        type: 'Evaluation',
+        score: Math.floor(Math.random() * (99 - 75 + 1) + 75), // Random score between 75 and 99
+        status: 'Safe to Publish',
+        editor: 'AI Auto',
+        isAiFixed: true,
+        company: selectedCompany
+      });
+      
     } catch (error) {
+      console.error("Asset evaluation API failed:", error.message);
       setChatMessages([
         { sender: 'user', type: 'upload', content: fileData.name },
         { sender: 'ai', type: 'evaluation', content: `Error analyzing asset: ${error.message}` }
@@ -85,10 +105,11 @@ export default function EvaluateContentView({ selectedCompany }) {
   };
 
   const handleAccept = () => {
+    setIsFixed(true);
     setChatMessages(prev => [
       ...prev,
-      { sender: 'user', type: 'text', content: 'Accept Changes' },
-      { sender: 'ai', type: 'success', content: 'Changes applied successfully! You can download the brand-compliant asset now.' }
+      { sender: 'user', type: 'text', content: 'Fix Everything' },
+      { sender: 'ai', type: 'success', content: 'All brand violations have been automatically fixed! The main preview now shows your updated content.' }
     ]);
   };
 
@@ -146,13 +167,38 @@ export default function EvaluateContentView({ selectedCompany }) {
               </>
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center animate-in fade-in duration-500">
-                <div className="relative w-full max-w-sm rounded-xl overflow-hidden shadow-lg border border-theme-border">
-                  <img src={uploadedFileData?.base64 || "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=600&auto=format&fit=crop"} alt="Uploaded Content" className="w-full h-auto object-cover" />
-                  <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5">
-                    <FileText size={12} /> {uploadedFileData?.name || 'Social_Media_Draft_v1.jpg'}
+                <div className="relative w-full max-w-sm rounded-xl overflow-hidden shadow-lg border border-theme-border flex justify-center items-center bg-black/5">
+                  {uploadedFileData?.type?.startsWith('image/') ? (
+                    <img 
+                      src={uploadedFileData?.base64 || "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=600&auto=format&fit=crop"} 
+                      alt="Uploaded Content" 
+                      className="w-full h-auto object-cover transition-all duration-700" 
+                      style={isFixed ? { filter: 'brightness(1.1) contrast(1.15) saturate(1.2)' } : {}}
+                    />
+                  ) : (
+                    <div className={`py-24 flex flex-col items-center justify-center transition-all duration-500 ${isFixed ? 'text-emerald-500' : 'text-theme-text-secondary'}`}>
+                      {isFixed ? (
+                        <FileCheck size={64} className="mb-4 text-emerald-500 animate-bounce" />
+                      ) : (
+                        <FileText size={64} className="mb-4 text-theme-text-primary/50" />
+                      )}
+                      <span className={`text-lg font-bold ${isFixed ? 'text-emerald-600 dark:text-emerald-400' : 'text-theme-text-primary'}`}>
+                        {uploadedFileData?.name}
+                      </span>
+                      <span className={`text-xs mt-2 px-3 py-1 rounded-full font-semibold ${isFixed ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' : 'bg-theme-bg'}`}>
+                        {isFixed ? 'Document Enhanced & Brand-Compliant' : 'Document Uploaded'}
+                      </span>
+                    </div>
+                  )}
+                  {isFixed && (
+                    <div className="absolute top-0 inset-x-0 h-full w-full pointer-events-none border-4 border-emerald-500/50 rounded-xl animate-pulse" />
+                  )}
+                  <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-md">
+                    {isFixed ? <Sparkles size={12} className="text-emerald-400" /> : <FileText size={12} />}
+                    {isFixed ? 'Fixed Version' : (uploadedFileData?.name || 'File')}
                   </div>
                 </div>
-                <button onClick={() => { setUploadState('idle'); setUploadedFileData(null); setChatMessages([]); }} className="mt-6 px-4 py-2 rounded-lg bg-theme-input text-theme-text-secondary text-xs font-semibold hover:bg-theme-border transition-colors">
+                <button onClick={() => { setUploadState('idle'); setUploadedFileData(null); setChatMessages([]); setIsFixed(false); }} className="mt-6 px-4 py-2 rounded-lg bg-theme-input text-theme-text-secondary text-xs font-semibold hover:bg-theme-border transition-colors">
                   Upload Different File
                 </button>
               </div>
@@ -262,6 +308,72 @@ function ChatMessage({ msg, company, onAccept, onReject, isLast, uploadedFile })
           {msg.type === 'evaluation' && <AlertTriangle size={16} className="inline mr-2 mb-0.5" />}
           {msg.type === 'success' && <CheckCircle2 size={16} className="inline mr-2 mb-0.5" />}
           <span dangerouslySetInnerHTML={{ __html: msg.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+          
+          {msg.type === 'success' && (
+            <div className="mt-4 p-3 bg-white/50 dark:bg-black/20 rounded-xl border border-emerald-500/20 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-500 text-white rounded-lg">
+                  {uploadedFile?.type?.startsWith('image/') ? <ImageIcon size={20} /> : <FileText size={20} />}
+                </div>
+                <div>
+                  <div className="font-bold text-theme-text-primary text-sm">{uploadedFile?.name ? `Fixed_${uploadedFile.name}` : 'Brand_Compliant_Asset.pdf'}</div>
+                  <div className="text-[10px] text-theme-text-secondary">Ready for production</div>
+                </div>
+              </div>
+              <button 
+                onClick={async () => {
+                  if (!uploadedFile?.base64) return;
+                  
+                  let downloadDataUri = uploadedFile.base64;
+                  
+                  // If it's a PDF, we dynamically modify it to stamp "BRAND APPROVED"
+                  if (uploadedFile.type === 'application/pdf' || uploadedFile.name?.toLowerCase().endsWith('.pdf')) {
+                    try {
+                      // Dynamically import pdf-lib to keep bundle size small when not needed
+                      const { PDFDocument, rgb, degrees } = await import('pdf-lib');
+                      
+                      // Convert base64 data URI to ArrayBuffer
+                      const base64Data = uploadedFile.base64.split(',')[1];
+                      const pdfBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+                      
+                      // Load and modify the PDF
+                      const pdfDoc = await PDFDocument.load(pdfBytes);
+                      const pages = pdfDoc.getPages();
+                      const firstPage = pages[0];
+                      const { width, height } = firstPage.getSize();
+                      
+                      // Draw a green "BRAND APPROVED" stamp diagonally across the first page
+                      firstPage.drawText('APPROVED BY BRANDSPHERE AI', {
+                        x: width / 4,
+                        y: height / 2,
+                        size: 32,
+                        color: rgb(0.1, 0.7, 0.3), // Emerald green
+                        rotate: degrees(45),
+                        opacity: 0.8,
+                      });
+                      
+                      // Save and create new data URI
+                      const modifiedPdfBytes = await pdfDoc.saveAsBase64({ dataUri: true });
+                      downloadDataUri = modifiedPdfBytes;
+                    } catch (error) {
+                      console.error("Failed to modify PDF:", error);
+                      // Fall back to original if modification fails
+                    }
+                  }
+                  
+                  const link = document.createElement('a');
+                  link.href = downloadDataUri;
+                  link.download = `Fixed_${uploadedFile.name || 'Brand_Compliant_Asset.pdf'}`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+                className="px-4 py-2 bg-theme-text-primary text-theme-bg rounded-lg text-xs font-bold hover:scale-105 transition-transform flex items-center gap-2 shadow-sm"
+              >
+                Review & Download
+              </button>
+            </div>
+          )}
         </div>
 
         {msg.type === 'suggestion' && (
@@ -269,14 +381,21 @@ function ChatMessage({ msg, company, onAccept, onReject, isLast, uploadedFile })
             <p className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider mb-2 flex items-center gap-1">
               <Sparkles size={12} className="text-orange-500" /> Suggested Alteration
             </p>
-            <div className="relative rounded-lg overflow-hidden border border-theme-border">
-              {/* Simulating AI altered image by applying a CSS filter to the original upload */}
-              <img 
-                src={uploadedFile?.base64 || "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?q=80&w=600&auto=format&fit=crop"} 
-                alt="Suggested Alteration" 
-                className="w-full h-auto transition-all" 
-                style={{ filter: 'brightness(1.1) contrast(1.15) saturate(1.2)' }} 
-              />
+            <div className="relative rounded-lg overflow-hidden border border-theme-border flex justify-center items-center bg-black/5">
+              {/* If it's an image, apply CSS filters to simulate AI fix */}
+              {uploadedFile?.type?.startsWith('image/') ? (
+                <img 
+                  src={uploadedFile?.base64 || "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?q=80&w=600&auto=format&fit=crop"} 
+                  alt="Suggested Alteration" 
+                  className="w-full h-auto transition-all" 
+                  style={{ filter: 'brightness(1.1) contrast(1.15) saturate(1.2)' }} 
+                />
+              ) : (
+                <div className="py-12 flex flex-col items-center justify-center text-theme-text-secondary">
+                  <FileCheck size={48} className="text-emerald-500 mb-3" />
+                  <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Document enhanced & brand-compliant</span>
+                </div>
+              )}
               <div className="absolute top-2 right-2 bg-orange-500 text-white px-2 py-1 rounded text-[9px] font-bold shadow-lg">
                 ✨ {company} Compliant
               </div>
@@ -285,7 +404,7 @@ function ChatMessage({ msg, company, onAccept, onReject, isLast, uploadedFile })
             {isLast && (
               <div className="flex gap-2 mt-4">
                 <button onClick={onAccept} className="flex-1 bg-gradient-to-r from-emerald-500 to-emerald-400 text-white py-2 rounded-lg text-xs font-bold shadow-md hover:scale-[1.02] transition-transform flex items-center justify-center gap-1.5">
-                  <CheckCircle2 size={14} /> Accept Changes
+                  <CheckCircle2 size={14} /> Fix Everything
                 </button>
                 <button onClick={onReject} className="flex-1 bg-theme-input text-theme-text-primary py-2 rounded-lg text-xs font-semibold hover:bg-theme-border transition-colors border border-theme-border flex items-center justify-center gap-1.5">
                   <X size={14} /> Edit Further

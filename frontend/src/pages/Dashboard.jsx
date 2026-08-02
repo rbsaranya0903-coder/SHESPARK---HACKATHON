@@ -10,6 +10,10 @@ import {
 import BrandDNAView from '../components/BrandDNAView';
 import BrandMemoryView from '../components/BrandMemoryView';
 import EvaluateContentView from '../components/EvaluateContentView';
+import CompetitorIntelView from '../components/CompetitorIntelView';
+import OpportunityRadarView from '../components/OpportunityRadarView';
+import HistoryView from '../components/HistoryView';
+import ReportsView from '../components/ReportsView';
 
 const API_URL = 'http://localhost:5000/api';
 
@@ -200,8 +204,8 @@ export default function Dashboard() {
       });
       setChatMessages([...newMessages, { sender: 'ai', text: response.data.reply }]);
     } catch (error) {
-      console.error(error);
-      setChatMessages([...newMessages, { sender: 'ai', text: `Sorry, I encountered an error: ${error.message}` }]);
+      console.error("Chatbot API failed:", error.message);
+      setChatMessages([...newMessages, { sender: 'ai', text: `Sorry, I encountered an error: ${error.response?.data?.error || error.message}` }]);
     }
   };
 
@@ -309,7 +313,7 @@ export default function Dashboard() {
             <SidebarItem icon={<Activity size={16} />} label="Command Center" active={activeTab === 'command-center'} onClick={() => setActiveTab('command-center')} />
             <SidebarItem icon={<Shield size={16} />} label="Brand Memory" active={activeTab === 'brand-memory'} onClick={() => setActiveTab('brand-memory')} />
             <SidebarItem icon={<Sparkles size={16} />} label="Evaluate Content" active={activeTab === 'evaluate'} onClick={() => setActiveTab('evaluate')} />
-            <SidebarItem icon={<ImageIcon size={16} />} label="AI Brand Editor" active={activeTab === 'editor'} onClick={() => setActiveTab('editor')} />
+
             <SidebarItem icon={<Layers size={16} />} label="Campaign Studio" active={activeTab === 'campaigns'} onClick={() => setActiveTab('campaigns')} />
             <SidebarItem icon={<PieChart size={16} />} label="Competitor Intel" active={activeTab === 'competitors'} onClick={() => setActiveTab('competitors')} />
             <SidebarItem icon={<Compass size={16} />} label="Opportunity Radar" active={activeTab === 'radar'} onClick={() => setActiveTab('radar')} />
@@ -434,6 +438,30 @@ export default function Dashboard() {
           {activeTab === 'brand-memory' && <BrandMemoryView selectedCompany={selectedCompany} />}
 
           {activeTab === 'evaluate' && <EvaluateContentView selectedCompany={selectedCompany} />}
+
+          {activeTab === 'competitors' && (
+            <CompetitorIntelView 
+              selectedCompany={selectedCompany} 
+              onTriggerAction={(actionText) => {
+                setIsChatOpen(true);
+                handleSendMessage(actionText);
+              }}
+            />
+          )}
+
+          {activeTab === 'radar' && (
+            <OpportunityRadarView 
+              selectedCompany={selectedCompany} 
+              onTriggerAction={(actionText) => {
+                setIsChatOpen(true);
+                handleSendMessage(actionText);
+              }}
+            />
+          )}
+
+          {activeTab === 'history' && <HistoryView selectedCompany={selectedCompany} />}
+          
+          {activeTab === 'reports' && <ReportsView selectedCompany={selectedCompany} />}
 
           {activeTab === 'command-center' && (
             <div id="command-center-report" className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-500">
